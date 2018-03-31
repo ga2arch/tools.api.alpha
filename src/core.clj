@@ -92,9 +92,9 @@
 
         (keyword? t)
         {:type        (get-type types body)
-         :description desc})
+         :description desc}))
 
-      (seq? body))
+    (seq? body)
     {:type (make-type types body)}
 
     (keyword? body)
