@@ -1,0 +1,52 @@
+{:schema-version "0.0.1"
+ :service     "api-service"
+ :base-path   {:test "http://test.api.com"
+               :stag "http://test.api.com"
+               :prod "http://test.api.com"}
+ :description "blah blah blah"
+
+ :include     ["global.edn"
+               [:types "types/merchant.edn"]
+               [:routes "routes/merchant.edn" "routes/shop.edn"]]
+
+ :types       {:ApiRequestBean
+               {:id          :type/string
+                :session_id  :type/uuid
+                :insert_date :type/date}
+
+               (:paginated-list T)
+               {:has_more :type/boolean
+                :data     [T]}
+
+               (:error code)
+               {:error_code code}
+
+               :void
+               {}}
+
+ :routes      {[:context :v2 "/merchant"]
+               {:include "merchant.edn"}
+
+               [:context :v1 "/api/{?uid}"]
+               {:path-params {uid [:type/uuid "the uid of the merchant"]}
+                :routes      {[:POST "/requests/{request_uid}"]
+                              {:description  "post the request"
+                               :path-params  {request_uid [:type/uuid "the second uid of the request"]}
+                               :query-params {starting_after [:type/string "the starting after" :required]
+                                              limit          :type/integer}
+                               :consumes     [:application/json]
+                               :produces     [:application/json]
+                               :body         :types/ApiRequestBean
+                               :return       {200 [{:ApiResponseBean
+                                                    {:id          :type/string
+                                                     :session_id  :type/uuid
+                                                     :insert_date :type/date}}
+                                                   "description"]
+
+                                              201 :type/void
+
+                                              303 [(:types/paginated-list :ApiResponseBean)
+                                                   "random code"]
+
+                                              404 [(:types/error "PA_004")
+                                                   "entity not found"]}}}}}}
