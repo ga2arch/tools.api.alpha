@@ -215,10 +215,10 @@
 
     (seq? include)                                          ;; ("file.edn" "arg1")
     (let [data (edn/read-string (slurp (first include)))]
-      (if-let [args (:functor data)]
-        (let [data (dissoc data :functor)
+      (if-let [args (:signature data)]
+        (let [data (dissoc data :signature)
               arg->value (zipmap args (rest include))]
-          (postwalk #(or (get arg->value %) %) data))
+          (merge m (postwalk #(or (get arg->value %) %) data)))
         data))
 
     (vector? include)                                       ;; ["file.edn"]

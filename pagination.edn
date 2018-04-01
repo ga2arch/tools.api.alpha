@@ -1,6 +1,7 @@
-{:functor      [T]
+{:signature      [T]
  :query-params {starting_after [:type/string "the starting after" :required]
                 limit          :type/integer}
  :consumes     [:application/json]
  :produces     [:application/json]
  :return       {200 (:types/paginated-list T)}}
+
