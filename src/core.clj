@@ -25,30 +25,33 @@
 (s/def ::base-path (s/keys :req-un [::test ::stag ::prod]))
 (s/def ::description string?)
 
-(s/def ::types-name
-  (s/or
-    :kind-normal keyword?
-    :kind-generic (s/cat :type keyword?
-                         :symbols (s/+ symbol?))))
+(s/def :type/name symbol?)
+(s/def :type/kind #{:kind :concrete})
+(s/def :type/schema (s/map-of keyword? (s/or :simple #{:type/string
+                                                       :type/integer
+                                                       :type/int
+                                                       :type/void
+                                                       :type/uuid
+                                                       :type/date
+                                                       :type/boolean}
+                                             :list vector?
+                                             :generic symbol?)))
 
-(s/def ::types-schema
-  (s/map-of keyword? (s/or
-                       :type keyword?
-                       :symbol symbol?
-                       :list (s/coll-of (s/or :type keyword?
-                                              :symbol symbol?)))))
+(s/def ::type (s/keys :req-un [:type/name :type/kind :type/schema]))
+(s/def ::types (s/map-of keyword? ::type))
 
-(s/def ::types (s/map-of ::types-name ::types-schema))
-(s/def ::routes-context
-  (s/cat :context #{:context}
-         :version keyword?
-         :path string?))
+(s/def :route/description string?)
+(s/def :route/path string?)
+(s/def :route/return.type (s/keys :req-un [::type ::description]))
+(s/def :route/return (s/map-of int? :route/return.type))
+(s/def :route/method #{:GET :POST :PATCH :PUT :DELETE :OPTIONS})
+(s/def :route/produces (s/coll-of #{:application/json}))
+(s/def :route/consumers (s/coll-of #{:application/json}))
+;(s/def :route/query-params (s/coll-of ))
 
-(s/def ::routes
-  (s/map-of (s/or :context ::routes-context
-                  :endpoint ::routes-endpoint)
-            map?))
+(s/def ::route (s/keys :req-un [:route/path]))
 
+;(s/def ::routes (s/map-of keyword?))
 (s/def ::schema (s/keys :req-un [::schema-version
                                  ::service
                                  ::base-path
@@ -66,13 +69,13 @@
   [[param-name param-details]]
   (cond
     (vector? param-details)
-    {:name        (name param-name)
+    {:name        param-name
      :type        (first param-details)
      :description (second param-details)
      :required    (boolean ((into #{} param-details) :required))}
 
     (keyword? param-details)
-    {:name     (name param-name)
+    {:name     param-name
      :type     param-details
      :required false}))
 
@@ -80,24 +83,42 @@
   [params]
   (mapv normalize-param params))
 
-(defn get-type
-  "Retrieve a custom type from the types map"
-  [types t]
-  (let [k (keyword (name t))]
-    (get types k)))
-
 (defn make-type
   "Concrete-ize a generic type by substituting the generic param"
   [types [t & args]]
-  (let [k (keyword (name t))
-        type (get-type types k)
+  (let [type (get types t)
         args (for [arg args]
                (cond
-                 (keyword? arg)
-                 (get-type types arg)
+                 (symbol? arg)
+                 (get types arg)
                  :default arg))
         symbols (zipmap (:args type) args)]
     (postwalk #(or (get symbols %) %) type)))
+
+(defn normalize-types
+  "Transform the types in the types map in the form:
+  * {:Name {..}} type declaration
+  * {(:Name Sym) {..}} generic type declaration
+  into
+  {:Name {:name :Name
+          :kind :concrete|:generic
+          :args () (if generic)
+          :schema {..}}"
+  [types]
+  (into
+    {}
+    (for [[k v] types]
+      (cond
+        (or (symbol? k) (keyword? k))
+        [k {:name   k
+            :kind   :concrete
+            :schema v}]
+
+        (seq? k)
+        [(first k) {:name   (first k)
+                    :kind   :generic
+                    :args   (rest k)
+                    :schema v}]))))
 
 (defn normalize-type
   "Transform type in the form:
@@ -124,43 +145,25 @@
                        :schema (second (first t))}
          :description desc}
 
-        (keyword? t)
-        {:type        (get-type types t)
+        (symbol? t)
+        {:type        (get types t)
          :description desc}))
 
     (seq? body)
     {:type (make-type types body)}
 
-    (keyword? body)
-    {:type (get-type types body)}))
+    (map? body)
+    (if (seq? (ffirst body))
+      {:type (make-type (merge types (normalize-types body)) (ffirst body))}
+      {:type        {:name   (ffirst body)
+                     :kind   :concrete
+                     :schema (second (first body))}})
+
+    (symbol? body)
+    {:type (get types body)}))
 
 (defn update-values [m f]
   (reduce (fn [r [k v]] (assoc r k (f v))) {} m))
-
-(defn normalize-types
-  "Transform the types in the types map in the form:
-  * {:Name {..}} type declaration
-  * {(:Name Sym) {..}} generic type declaration
-  into
-  {:Name {:name :Name
-          :kind :concrete|:generic
-          :args () (if generic)
-          :schema {..}}"
-  [types]
-  (into
-    {}
-    (for [[k v] types]
-      (cond
-        (keyword? k)
-        [k {:name   k
-            :kind   :concrete
-            :schema v}]
-
-        (seq? k)
-        [(first k) {:name   (first k)
-                    :kind   :generic
-                    :args   (rest k)
-                    :schema v}]))))
 
 (defn normalize-return
   [api return]
@@ -192,8 +195,9 @@
       (for [[[method path] details] routes]
         (normalize-endpoint
           api
-          [method (str base-path path)]
-          (update details :path-params #(merge path-params %)))))))
+          [method (str "/" (name version) base-path path)]
+          (-> (update details :path-params #(merge path-params %))
+              (assoc :version version)))))))
 
 (defn normalize-routes
   "Transform context into routes and normalize routes"
@@ -246,7 +250,8 @@
 
 ;; generators
 
-(defn type->java [type]
+(defn type->java
+  [type]
   (cond
     (vector? type)
     (str "List<" (type->java (first type)) ">")
@@ -324,6 +329,7 @@
                  first
                  second
                  :type)]
+    (println (:return route))
     (update config :return #(clojure.string/replace % "_" (type->java return)))))
 
 (defn generate-retrofit

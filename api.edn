@@ -8,21 +8,21 @@
  :include        ["global.edn"
                   ("merchant.edn" "kek")]
 
- :types          {:ApiRequestBean
+ :types          {ApiRequestBean
                   {:id          :type/string
                    :session_id  :type/uuid
                    :insert_date :type/date}
 
-                  :ApiResponseBean
+                  ApiResponseBean
                   {:id          :type/string
                    :session_id  :type/uuid
                    :insert_date :type/date}
 
-                  (:paginated-list T)
+                  (paginated-list T)
                   {:has_more :type/boolean
                    :data     [T]}
 
-                  :error
+                  error
                   {:code    :type/string
                    :message :type/string}}
 
@@ -40,8 +40,8 @@
                                                  limit          :type/integer}
                                   :consumes     [:application/json]
                                   :produces     [:application/json]
-                                  :body         :types/ApiRequestBean
-                                  :return       {200 [{:kek
+                                  :body         ApiRequestBean
+                                  :return       {200 [{kek
                                                        {:id          :type/string
                                                         :session_id  :type/uuid
                                                         :insert_date :type/date}}
@@ -49,10 +49,10 @@
 
                                                  201 :type/void
 
-                                                 303 [(:types/paginated-list :types/ApiResponseBean)
+                                                 303 [(paginated-list ApiResponseBean)
                                                       "random code"]
 
-                                                 404 [:types/error "PA_004 entity not found"]}}
+                                                 404 [error "PA_004 entity not found"]}}
 
                                  [:GET "/requests/{request_uid}"]
                                  {:plugins      {:retrofit {:name   "getRequests"
@@ -64,13 +64,13 @@
                                   :consumes     [:application/json]
                                   :produces     [:application/json]
                                   :body         :types/ApiRequestBean
-                                  :return       {200 [(:types/paginated-list :types/ApiResponseBean)
+                                  :return       {200 [(paginated-list ApiResponseBean)
                                                       "random code"]}}
 
                                  [:GET "/request/{request_uid}"]
                                  {:plugins     {:retrofit {:name   "getRequests"
                                                            :return "SdkCall<_>"}}
                                   :description "get the requests"
-                                  :include     ("pagination.edn" :types/ApiRequestBean)
+                                  :include     ("pagination.edn" ApiRequestBean)
                                   :path-params {request_uid [:type/uuid "the second uid of the request"]}
                                   }}}}}
