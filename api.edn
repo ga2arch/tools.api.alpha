@@ -1,52 +1,72 @@
 {:schema-version "0.0.1"
- :service     "api-service"
- :base-path   {:test "http://test.api.com"
-               :stag "http://test.api.com"
-               :prod "http://test.api.com"}
- :description "blah blah blah"
+ :service        "api-service"
+ :base-path      {:test "http://test.api.com"
+                  :stag "http://test.api.com"
+                  :prod "http://test.api.com"}
+ :description    "blah blah blah"
 
- :include     ["global.edn"
-               [:types "types/merchant.edn"]
-               [:routes "routes/merchant.edn" "routes/shop.edn"]]
+ :include        ["global.edn"
+                  [:types "types/merchant.edn"]
+                  [:routes "routes/merchant.edn" "routes/shop.edn"]]
 
- :types       {:ApiRequestBean
-               {:id          :type/string
-                :session_id  :type/uuid
-                :insert_date :type/date}
+ :types          {:ApiRequestBean
+                  {:id          :type/string
+                   :session_id  :type/uuid
+                   :insert_date :type/date}
 
-               (:paginated-list T)
-               {:has_more :type/boolean
-                :data     [T]}
+                  :ApiResponseBean
+                  {:id          :type/string
+                   :session_id  :type/uuid
+                   :insert_date :type/date}
 
-               (:error code)
-               {:error_code code}
+                  (:paginated-list T)
+                  {:has_more :type/boolean
+                   :data     [T]}
 
-               :void
-               {}}
+                  (:error code)
+                  {:error_code code}
 
- :routes      {[:context :v2 "/merchant"]
-               {:include "merchant.edn"}
+                  :void
+                  {}}
 
-               [:context :v1 "/api/{?uid}"]
-               {:path-params {uid [:type/uuid "the uid of the merchant"]}
-                :routes      {[:POST "/requests/{request_uid}"]
-                              {:description  "post the request"
-                               :path-params  {request_uid [:type/uuid "the second uid of the request"]}
-                               :query-params {starting_after [:type/string "the starting after" :required]
-                                              limit          :type/integer}
-                               :consumes     [:application/json]
-                               :produces     [:application/json]
-                               :body         :types/ApiRequestBean
-                               :return       {200 [{:ApiResponseBean
-                                                    {:id          :type/string
-                                                     :session_id  :type/uuid
-                                                     :insert_date :type/date}}
-                                                   "description"]
+ :routes         {[:context :v2 "/merchant"]
+                  {:include "merchant.edn"}
 
-                                              201 :type/void
+                  [:context :v1 "/api/{uid}"]
+                  {:path-params {uid [:type/uuid "the uid of the merchant"]}
+                   :routes      {[:POST "/requests/{request_uid}"]
+                                 ^{:retrofit {:name   "topkek"
+                                              :return "SdkCall<Optional<_>>"}}
+                                 {:description  "post the request"
+                                  :path-params  {request_uid [:type/uuid "the second uid of the request"]}
+                                  :query-params {starting_after [:type/string "the starting after" :required]
+                                                 limit          :type/integer}
+                                  :consumes     [:application/json]
+                                  :produces     [:application/json]
+                                  :body         :types/ApiRequestBean
+                                  :return       {200 [{:kek
+                                                       {:id          :type/string
+                                                        :session_id  :type/uuid
+                                                        :insert_date :type/date}}
+                                                      "description"]
 
-                                              303 [(:types/paginated-list :ApiResponseBean)
-                                                   "random code"]
+                                                 201 :type/void
 
-                                              404 [(:types/error "PA_004")
-                                                   "entity not found"]}}}}}}
+                                                 303 [(:types/paginated-list :types/ApiResponseBean)
+                                                      "random code"]
+
+                                                 404 [(:types/error "PA_004")
+                                                      "entity not found"]}}
+
+                                 [:GET "/requests/{request_uid}"]
+                                 ^{:retrofit {:name "getRequests"
+                                              :return "SdkCall<_>"}}
+                                 {:description  "get the requests"
+                                  :path-params  {request_uid [:type/uuid "the second uid of the request"]}
+                                  :query-params {starting_after [:type/string "the starting after" :required]
+                                                 limit          :type/integer}
+                                  :consumes     [:application/json]
+                                  :produces     [:application/json]
+                                  :body         :types/ApiRequestBean
+                                  :return       {200 [(:types/paginated-list :types/ApiResponseBean)
+                                                      "random code"]}}}}}}

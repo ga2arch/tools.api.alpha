@@ -1,0 +1,20 @@
+public class {{ name }} extends LoggableEntity {
+    {% for field in fields %}private {{ field.type }} {{ field.name }};
+    {% endfor %}
+    public {{ name }}() {
+    }
+
+    public {{ name }}({% for field in fields %}{{ field.type }} {{ field.name }}{% if not forloop.last %}, {% endif %}{% endfor %}) {
+        {% for field in fields %}this.{{ field.name }} = {{ field.name }};
+        {% endfor %}
+    }
+    {% for field in fields %}
+    public void set{{ field.name|upperHead }}({{ field.type }} {{ field.name }}) {
+        this.{{ field.name }} = {{ field.name }};
+    }
+
+    public {{ field.type }} get{{ field.name|upperHead }}() {
+        return {{ field.name }};
+    }
+    {% endfor %}
+}

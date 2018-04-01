@@ -1,0 +1,6 @@
+public interface {{ service }} {
+ {% for route in routes %}
+    @{{ route.method }}("{{ route.path }}")
+    {{ route.return }} {{ route.name }}({{ route.params }});
+
+ {% endfor %}}

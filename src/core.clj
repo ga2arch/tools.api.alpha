@@ -2,8 +2,19 @@
   (:require [clojure.tools.reader :as edn]
             [clojure.java.io :as jio]
             [clojure.spec.alpha :as s]
+            [selmer.parser :as t]
+            [selmer.filters :refer [add-filter!]]
             [clojure.walk :refer [postwalk]]
+            [camel-snake-kebab.core :refer :all]
             [clojure.spec.gen.alpha :as gen]))
+
+;; specs
+(add-filter! :upperHead
+             (fn [x]
+               [:safe (str (clojure.string/upper-case (first x))
+                           (subs x 1))]))
+
+(selmer.util/turn-off-escaping!)
 
 (s/def ::schema-version string?)
 (s/def ::service string?)
@@ -44,6 +55,8 @@
                                  ::routes]
                         :opt-un [::description]))
 
+;; api loader / normalizer
+
 (defn normalize-param
   [[k v]]
   (cond
@@ -71,6 +84,11 @@
   [types [t & args]]
   (let [k (keyword (name t))
         type (get-type types k)
+        args (for [arg args]
+               (cond
+                 (keyword? arg)
+                 (get-type types arg)
+                 :default arg))
         symbols (zipmap (:args type) args)]
     (postwalk #(or (get symbols %) %) type)))
 
@@ -85,7 +103,7 @@
          :description desc}
 
         (map? t)
-        {:type        {:name   (name (ffirst t))
+        {:type        {:name   (ffirst t)
                        :kind   :concrete
                        :schema (second (first t))}
          :description desc}
@@ -110,12 +128,12 @@
     (for [[k v] types]
       (cond
         (keyword? k)
-        [k {:name   (name k)
+        [k {:name   k
             :kind   :concrete
             :schema v}]
 
         (seq? k)
-        [(first k) {:name   (name (first k))
+        [(first k) {:name   (first k)
                     :kind   :generic
                     :args   (rest k)
                     :schema v}]))))
@@ -126,19 +144,19 @@
 
 (defn normalize-endpoint
   [api [method path] v]
-  (merge
-    v
-    {:method       method
-     :path         path
-     :path-params  (normalize-params (:path-params v))
-     :query-params (normalize-params (:query-params v))
-     :body         (normalize-type api (:body v))
-     :return       (normalize-return api (:return v))}))
+  (with-meta (merge
+               v
+               {:method       method
+                :path         path
+                :path-params  (normalize-params (:path-params v))
+                :query-params (normalize-params (:query-params v))
+                :body         (normalize-type api (:body v))
+                :return       (normalize-return api (:return v))})
+             (meta v)))
 
 (defn normalize-context
   [api [_ version base-path] v]
   (if-let [routes (:routes v)]
-    ;; if the context has sub routes
     (let [path-params (:path-params v)]
       (for [[[method path] details] routes]
         (normalize-endpoint
@@ -163,4 +181,76 @@
         api (update api :types normalize-types)
         api (update api :routes (partial normalize-routes api))]
     api))
+
+;; generators
+
+(defn type->java [type]
+  (cond
+    (vector? type)
+    (str "List<" (name (:name (first type))) ">")
+
+    (keyword? type)
+    (case type
+      :type/string "String"
+      :type/integer "Integer"
+      :type/int "int"
+      :type/uuid "UUID"
+      :type/date "Date"
+      :type/boolean "Boolean")))
+
+(defn prepare-params-retrofit
+  [path query]
+  (let [path (mapv #(format "@Path(\"%s\") %s %s" (:name %) (type->java (:type %)) (->camelCase (:name %))) path)
+        query (mapv #(format "@Query(\"%s\") %s %s" (:name %) (type->java (:type %)) (->camelCase (:name %))) query)]
+    (apply str (interpose ", " (concat path query)))))
+
+(defn prepare-return-retrofit
+  [{:keys [kind args] :as return}]
+  (case kind
+    :generic (format "%s<%s>" (->PascalCase (name (:name return))) (apply str (mapv prepare-return-retrofit args)))
+    :concrete (->PascalCase (name (:name return)))))
+
+(defn prepare-route-retrofit
+  [route]
+  (let [config {:method (name (:method route))
+                :params (prepare-params-retrofit (:path-params route) (:query-params route))
+                :path   (:path route)
+                :return "Call<_>"}
+        config (if-let [{:keys [retrofit]} (meta route)]
+                 (cond-> config
+                         (some? (:name retrofit)) (assoc :name (:name retrofit))
+                         (some? (:return retrofit)) (assoc :return (:return retrofit)))
+                 config)
+        return (->>
+                 (into [] (:return route))
+                 (filter #(< (first %) 300))
+                 (sort-by first)
+                 first
+                 second
+                 :type)]
+    (update config :return #(clojure.string/replace % "_" (prepare-return-retrofit return)))))
+
+(defn generate-retrofit
+  [{:keys [service routes] :as api}]
+  (let [config {:service (->PascalCase service)
+                :routes  (mapv prepare-route-retrofit routes)}]
+    (t/render (slurp "resources/templates/retrofit") config)))
+
+(defn schema->fields
+  [schema]
+  (for [[field type] schema]
+    {:name (name field)
+     :type (type->java type)}))
+
+(defn type->bean
+  [type]
+  (t/render (slurp "resources/templates/bean")
+            {:name   (name (:name type))
+             :fields (schema->fields (:schema type))}))
+
+(defn ->beans
+  [api]
+  (map (comp type->bean :type) (mapcat (comp vals :return) (:routes api))))
+
+
 
