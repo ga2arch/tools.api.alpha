@@ -6,8 +6,7 @@
  :description    "blah blah blah"
 
  :include        ["global.edn"
-                  [:types "types/merchant.edn"]
-                  [:routes "routes/merchant.edn" "routes/shop.edn"]]
+                  ("merchant.edn" "kek")]
 
  :types          {:ApiRequestBean
                   {:id          :type/string
@@ -66,4 +65,12 @@
                                   :produces     [:application/json]
                                   :body         :types/ApiRequestBean
                                   :return       {200 [(:types/paginated-list :types/ApiResponseBean)
-                                                      "random code"]}}}}}}
+                                                      "random code"]}}
+
+                                 [:GET "/request/{request_uid}"]
+                                 {:plugins     {:retrofit {:name   "getRequests"
+                                                           :return "SdkCall<_>"}}
+                                  :description "get the requests"
+                                  :include     ("pagination.edn" :types/ApiRequestBean)
+                                  :path-params {request_uid [:type/uuid "the second uid of the request"]}
+                                  }}}}}

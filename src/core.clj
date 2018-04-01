@@ -4,7 +4,7 @@
             [clojure.spec.alpha :as s]
             [selmer.parser :as t]
             [selmer.filters :refer [add-filter!]]
-            [clojure.walk :refer [postwalk]]
+            [clojure.walk :refer [postwalk prewalk]]
             [camel-snake-kebab.core :refer :all]
             [clojure.spec.gen.alpha :as gen]))
 
@@ -207,9 +207,39 @@
          flatten
          (into []))))
 
+(defn resolve-include
+  [m include]
+  (cond
+    (string? include)                                       ;; "file.edn"
+    (merge m (edn/read-string (slurp include)))
+
+    (seq? include)                                          ;; ("file.edn" "arg1")
+    (let [data (edn/read-string (slurp (first include)))]
+      (if-let [args (:functor data)]
+        (let [data (dissoc data :functor)
+              arg->value (zipmap args (rest include))]
+          (postwalk #(or (get arg->value %) %) data))
+        data))
+
+    (vector? include)                                       ;; ["file.edn"]
+    (loop [m m
+           include include]
+      (if (empty? include)
+        m
+        (recur (merge m (resolve-include m (first include)))
+               (rest include))))))
+
+(defn resolve-includes
+  [api]
+  (prewalk (fn [x]
+             (if-let [include (:include x)]
+               (resolve-include x include)
+               x)) api))
+
 (defn load-api
   [path]
   (let [api (edn/read-string (slurp path))
+        api (resolve-includes api)
         api (update api :types normalize-types)
         api (update api :routes (partial normalize-routes api))]
     api))
