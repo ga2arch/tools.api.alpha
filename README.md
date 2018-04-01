@@ -10,9 +10,9 @@ going to structure an api before doing any kind of code development.
 
 There are a multitude of tools to describe apis but none of them is:
 
-* expressive enough: json is to simple and easily became a mess.
+* expressive enough: json is too simple and easily became a mess.
 * powerful enough: defining generics types is too challenging or down right impossible.
-* simple enough: because of json limitation expressing something simple become to complex and usually achieved with 
+* simple enough: because of json limitation expressing something simple become too complex and usually achieved with 
 too verbose nesting or code duplication.
 * extensible enough: hooking into the code generation of schema interpretation is extremely difficult. 
 
