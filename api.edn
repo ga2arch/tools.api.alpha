@@ -23,11 +23,9 @@
                   {:has_more :type/boolean
                    :data     [T]}
 
-                  (:error code)
-                  {:error_code code}
-
-                  :void
-                  {}}
+                  :error
+                  {:code    :type/string
+                   :message :type/string}}
 
  :routes         {[:context :v2 "/merchant"]
                   {:include "merchant.edn"}
@@ -35,9 +33,9 @@
                   [:context :v1 "/api/{uid}"]
                   {:path-params {uid [:type/uuid "the uid of the merchant"]}
                    :routes      {[:POST "/requests/{request_uid}"]
-                                 ^{:retrofit {:name   "topkek"
-                                              :return "SdkCall<Optional<_>>"}}
-                                 {:description  "post the request"
+                                 {:plugins      {:retrofit {:name   "topkek"
+                                                            :return "SdkCall<Optional<_>>"}}
+                                  :description  "post the request"
                                   :path-params  {request_uid [:type/uuid "the second uid of the request"]}
                                   :query-params {starting_after [:type/string "the starting after" :required]
                                                  limit          :type/integer}
@@ -55,13 +53,12 @@
                                                  303 [(:types/paginated-list :types/ApiResponseBean)
                                                       "random code"]
 
-                                                 404 [(:types/error "PA_004")
-                                                      "entity not found"]}}
+                                                 404 [:types/error "PA_004 entity not found"]}}
 
                                  [:GET "/requests/{request_uid}"]
-                                 ^{:retrofit {:name "getRequests"
-                                              :return "SdkCall<_>"}}
-                                 {:description  "get the requests"
+                                 {:plugins      {:retrofit {:name   "getRequests"
+                                                            :return "SdkCall<_>"}}
+                                  :description  "get the requests"
                                   :path-params  {request_uid [:type/uuid "the second uid of the request"]}
                                   :query-params {starting_after [:type/string "the starting after" :required]
                                                  limit          :type/integer}

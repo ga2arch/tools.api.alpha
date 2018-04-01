@@ -94,6 +94,7 @@
 
 (defn normalize-type
   [{types :types} body]
+  (println body)
   (cond
     (vector? body)
     (let [[t desc] body]
@@ -109,7 +110,7 @@
          :description desc}
 
         (keyword? t)
-        {:type        (get-type types body)
+        {:type        (get-type types t)
          :description desc}))
 
     (seq? body)
@@ -187,36 +188,70 @@
 (defn type->java [type]
   (cond
     (vector? type)
-    (str "List<" (name (:name (first type))) ">")
+    (str "List<" (type->java (first type)) ">")
+
+    (map? type)
+    (case (:kind type)
+      :generic (format "%s<%s>" (->PascalCase (name (:name type))) (apply str (mapv type->java (:args type))))
+      :concrete (->PascalCase (name (:name type))))
 
     (keyword? type)
     (case type
       :type/string "String"
       :type/integer "Integer"
       :type/int "int"
+      :type/void "void"
       :type/uuid "UUID"
       :type/date "Date"
       :type/boolean "Boolean")))
 
-(defn prepare-params-retrofit
-  [path query]
-  (let [path (mapv #(format "@Path(\"%s\") %s %s" (:name %) (type->java (:type %)) (->camelCase (:name %))) path)
-        query (mapv #(format "@Query(\"%s\") %s %s" (:name %) (type->java (:type %)) (->camelCase (:name %))) query)]
-    (apply str (interpose ", " (concat path query)))))
+;; java beans
 
-(defn prepare-return-retrofit
-  [{:keys [kind args] :as return}]
-  (case kind
-    :generic (format "%s<%s>" (->PascalCase (name (:name return))) (apply str (mapv prepare-return-retrofit args)))
-    :concrete (->PascalCase (name (:name return)))))
+(defn schema->fields
+  [schema]
+  (for [[field type] schema]
+    {:name (->camelCase (name field))
+     :type (type->java type)}))
+
+(defn type->bean
+  [type]
+  (t/render (slurp "resources/templates/bean")
+            {:name   (type->java type)
+             :ctor   (->PascalCase (name (:name type)))
+             :fields (schema->fields (:schema type))}))
+
+(defn route->bean
+  [{:keys [query-params return body]}]
+  (let [query (filter map? (map :type query-params))
+        return (filter map? (map :type (vals return)))
+        body (filter map? (vec (:type body)))]
+    (distinct (concat query return body))))
+
+(defn generate-beans
+  [api]
+  (mapv type->bean (distinct (mapcat route->bean (:routes api)))))
+
+;; retrofit
+
+(defn prepare-params-retrofit
+  [{:keys [query-params path-params method body]}]
+  (let [params (let [path (mapv #(format "@Path(\"%s\") %s %s" (:name %) (type->java (:type %)) (->camelCase (:name %))) path-params)
+                     query (mapv #(format "@Query(\"%s\") %s %s" (:name %) (type->java (:type %)) (->camelCase (:name %))) query-params)]
+                 (apply str (interpose ", " (concat path query))))]
+    (case method
+      (:POST :PUT :PATCH) (str params ", "
+                               (format "@Body %s %s"
+                                       (type->java (:type body))
+                                       (->camelCase (name (get-in body [:type :name])))))
+      params)))
 
 (defn prepare-route-retrofit
   [route]
   (let [config {:method (name (:method route))
-                :params (prepare-params-retrofit (:path-params route) (:query-params route))
+                :params (prepare-params-retrofit route)
                 :path   (:path route)
                 :return "Call<_>"}
-        config (if-let [{:keys [retrofit]} (meta route)]
+        config (if-let [{:keys [retrofit]} (:plugins route)]
                  (cond-> config
                          (some? (:name retrofit)) (assoc :name (:name retrofit))
                          (some? (:return retrofit)) (assoc :return (:return retrofit)))
@@ -228,29 +263,11 @@
                  first
                  second
                  :type)]
-    (update config :return #(clojure.string/replace % "_" (prepare-return-retrofit return)))))
+    (update config :return #(clojure.string/replace % "_" (type->java return)))))
 
 (defn generate-retrofit
   [{:keys [service routes] :as api}]
   (let [config {:service (->PascalCase service)
                 :routes  (mapv prepare-route-retrofit routes)}]
     (t/render (slurp "resources/templates/retrofit") config)))
-
-(defn schema->fields
-  [schema]
-  (for [[field type] schema]
-    {:name (name field)
-     :type (type->java type)}))
-
-(defn type->bean
-  [type]
-  (t/render (slurp "resources/templates/bean")
-            {:name   (name (:name type))
-             :fields (schema->fields (:schema type))}))
-
-(defn ->beans
-  [api]
-  (map (comp type->bean :type) (mapcat (comp vals :return) (:routes api))))
-
-
 
