@@ -8,7 +8,7 @@
             [camel-snake-kebab.core :refer :all]
             [clojure.spec.gen.alpha :as gen]))
 
-;; specs
+;; global
 (add-filter! :upperHead
              (fn [x]
                [:safe (str (clojure.string/upper-case (first x))
@@ -16,6 +16,7 @@
 
 (selmer.util/turn-off-escaping!)
 
+;; specs
 (s/def ::schema-version string?)
 (s/def ::service string?)
 (s/def ::test string?)
@@ -58,17 +59,21 @@
 ;; api loader / normalizer
 
 (defn normalize-param
-  [[k v]]
+  "Transform parameter in the form {uid [:type/uuid \"description\"]} into
+  {:name \"uid\"
+   :type :type/uuid
+   :description \"description\"}"
+  [[param-name param-details]]
   (cond
-    (vector? v)
-    {:name        (name k)
-     :type        (first v)
-     :description (second v)
-     :required    (boolean ((into #{} v) :required))}
+    (vector? param-details)
+    {:name        (name param-name)
+     :type        (first param-details)
+     :description (second param-details)
+     :required    (boolean ((into #{} param-details) :required))}
 
-    (keyword? v)
-    {:name     (name k)
-     :type     v
+    (keyword? param-details)
+    {:name     (name param-name)
+     :type     param-details
      :required false}))
 
 (defn normalize-params
@@ -76,11 +81,13 @@
   (mapv normalize-param params))
 
 (defn get-type
+  "Retrieve a custom type from the types map"
   [types t]
   (let [k (keyword (name t))]
     (get types k)))
 
 (defn make-type
+  "Concrete-ize a generic type by substituting the generic param"
   [types [t & args]]
   (let [k (keyword (name t))
         type (get-type types k)
@@ -93,8 +100,16 @@
     (postwalk #(or (get symbols %) %) type)))
 
 (defn normalize-type
+  "Transform type in the form:
+   * [] type + description
+   * () generic type building,
+   * {} inline type declaration
+   into
+   {:type {:name ...
+           :kind ...
+           :schema ...}
+    :description ..."
   [{types :types} body]
-  (println body)
   (cond
     (vector? body)
     (let [[t desc] body]
@@ -123,6 +138,14 @@
   (reduce (fn [r [k v]] (assoc r k (f v))) {} m))
 
 (defn normalize-types
+  "Transform the types in the types map in the form:
+  * {:Name {..}} type declaration
+  * {(:Name Sym) {..}} generic type declaration
+  into
+  {:Name {:name :Name
+          :kind :concrete|:generic
+          :args () (if generic)
+          :schema {..}}"
   [types]
   (into
     {}
@@ -144,18 +167,25 @@
   (update-values return (partial normalize-type api)))
 
 (defn normalize-endpoint
+  "Transform endpoint in the form {[:GET \"/api/\"] {..}}
+   into
+   {:method :GET
+    :path   \"/api\"
+    ...}
+    normalizing params, body and return"
   [api [method path] v]
-  (with-meta (merge
-               v
-               {:method       method
-                :path         path
-                :path-params  (normalize-params (:path-params v))
-                :query-params (normalize-params (:query-params v))
-                :body         (normalize-type api (:body v))
-                :return       (normalize-return api (:return v))})
-             (meta v)))
+  (merge
+    v
+    {:method       method
+     :path         path
+     :path-params  (normalize-params (:path-params v))
+     :query-params (normalize-params (:query-params v))
+     :body         (normalize-type api (:body v))
+     :return       (normalize-return api (:return v))}))
 
 (defn normalize-context
+  "Transform context into set of routes by prepending the context base path
+   to all the sub routes paths"
   [api [_ version base-path] v]
   (if-let [routes (:routes v)]
     (let [path-params (:path-params v)]
@@ -166,6 +196,7 @@
           (update details :path-params #(merge path-params %)))))))
 
 (defn normalize-routes
+  "Transform context into routes and normalize routes"
   [api routes]
   (let [routes (for [[k v] routes]
                  (case (first k)
