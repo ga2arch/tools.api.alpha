@@ -9,7 +9,7 @@ The api schema is written in edn with the following format
 | `:description`    | the description of service         | `string` |
 | `:include`        | refer to include section           | |
 | `:types`          | refer to types section             | |
-| `routes`          | refer to routes section            | |
+| `:routes`          | refer to routes section            | |
 
 ## Include
 the `:include` key allows the following formats:
