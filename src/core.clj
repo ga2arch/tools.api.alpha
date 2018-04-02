@@ -16,6 +16,13 @@
 
 (selmer.util/turn-off-escaping!)
 
+(defn deep-merge
+  "Recursively merges maps. If value are not maps, the last value wins."
+  [& vals]
+  (if (every? map? vals)
+    (apply merge-with deep-merge vals)
+    (last vals)))
+
 ;; specs
 (s/def ::schema-version string?)
 (s/def ::service string?)
@@ -25,15 +32,17 @@
 (s/def ::base-path (s/keys :req-un [::test ::stag ::prod]))
 (s/def ::description string?)
 
+(def simple-types #{:type/string
+                    :type/integer
+                    :type/int
+                    :type/void
+                    :type/uuid
+                    :type/date
+                    :type/boolean})
+
 (s/def :type/name symbol?)
 (s/def :type/kind #{:kind :concrete})
-(s/def :type/schema (s/map-of keyword? (s/or :simple #{:type/string
-                                                       :type/integer
-                                                       :type/int
-                                                       :type/void
-                                                       :type/uuid
-                                                       :type/date
-                                                       :type/boolean}
+(s/def :type/schema (s/map-of keyword? (s/or :simple simple-types
                                              :list vector?
                                              :generic symbol?)))
 
@@ -47,17 +56,25 @@
 (s/def :route/method #{:GET :POST :PATCH :PUT :DELETE :OPTIONS})
 (s/def :route/produces (s/coll-of #{:application/json}))
 (s/def :route/consumers (s/coll-of #{:application/json}))
-;(s/def :route/query-params (s/coll-of ))
 
-(s/def ::route (s/keys :req-un [:route/path]))
+(s/def :route/query-param.name symbol?)
+(s/def :route/query-param.type (s/map-of keyword? (s/or :simple simple-types
+                                                        :list vector?
+                                                        :generic symbol?)))
+(s/def :route/query-params (s/coll-of (s/keys :req-un [:route/query-param.name
+                                                       :route/query-param.type]
+                                              :opt-un [::description])))
 
-;(s/def ::routes (s/map-of keyword?))
-(s/def ::schema (s/keys :req-un [::schema-version
-                                 ::service
-                                 ::base-path
-                                 ::types
-                                 ::routes]
-                        :opt-un [::description]))
+(s/def ::route (s/keys :req-un [:route/path
+                                :route/query-params]))
+
+(s/def ::routes (s/coll-of ::routes))
+(s/def ::api (s/keys :req-un [::schema-version
+                              ::service
+                              ::base-path
+                              ::types
+                              ::routes]
+                     :opt-un [::description]))
 
 ;; api loader / normalizer
 
@@ -155,9 +172,9 @@
     (map? body)
     (if (seq? (ffirst body))
       {:type (make-type (merge types (normalize-types body)) (ffirst body))}
-      {:type        {:name   (ffirst body)
-                     :kind   :concrete
-                     :schema (second (first body))}})
+      {:type {:name   (ffirst body)
+              :kind   :concrete
+              :schema (second (first body))}})
 
     (symbol? body)
     {:type (get types body)}))
@@ -215,14 +232,14 @@
   [m include]
   (cond
     (string? include)                                       ;; "file.edn"
-    (merge m (edn/read-string (slurp include)))
+    (deep-merge m (edn/read-string (slurp include)))
 
     (seq? include)                                          ;; ("file.edn" "arg1")
     (let [data (edn/read-string (slurp (first include)))]
       (if-let [args (:signature data)]
         (let [data (dissoc data :signature)
               arg->value (zipmap args (rest include))]
-          (merge m (postwalk #(or (get arg->value %) %) data)))
+          (deep-merge m (postwalk #(or (get arg->value %) %) data)))
         data))
 
     (vector? include)                                       ;; ["file.edn"]
@@ -230,7 +247,7 @@
            include include]
       (if (empty? include)
         m
-        (recur (merge m (resolve-include m (first include)))
+        (recur (deep-merge m (resolve-include m (first include)))
                (rest include))))))
 
 (defn resolve-includes
@@ -246,6 +263,7 @@
         api (resolve-includes api)
         api (update api :types normalize-types)
         api (update api :routes (partial normalize-routes api))]
+    ;(s/explain ::api api)
     api))
 
 ;; generators

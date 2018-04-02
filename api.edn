@@ -73,4 +73,6 @@
                                   :description "get the requests"
                                   :include     ("pagination.edn" ApiRequestBean)
                                   :path-params {request_uid [:type/uuid "the second uid of the request"]}
+                                  :query-params {kek [:type/string "the starting after" :required]}
+
                                   }}}}}
