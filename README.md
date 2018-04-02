@@ -10,15 +10,19 @@ going to structure an api before doing any kind of code development.
 
 There are a multitude of tools to describe apis but none of them is:
 
-* expressive enough: json is too simple and easily become a mess.
+* expressive enough: json is too simple and easily became a mess.
 * powerful enough: defining generics types is too challenging or down right impossible.
 * simple enough: because of json limitation expressing something simple become too complex and usually achieved with 
 too verbose nesting or code duplication.
 * extensible enough: hooking into the code generation of schema interpretation is extremely difficult. 
 
-tools.api.alpha aims to solve these problems by providing an easy to write first edn schema,
+tools.api.alpha aims to solve these problems by providing and easy to write first edn schema,
 a set of validators to check the righteousness of the schema and the api you're describing and 
 generators (retrofit2, jersey, java beans ...)
+
+# Documentation
+
+* [Documentation](https://github.com/ga2arch/tools.api.alpha/blob/master/DOC.md)
 
 # Developer Information
 
