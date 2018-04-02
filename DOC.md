@@ -51,4 +51,9 @@ example:
 * `:include ["file.edn" ("file1.ed" GenericType)`]  
 multiple files can be included by passing them into a vector
 
+## Types
+coming soon ...
+
+## Routes
+coming soon ...
 

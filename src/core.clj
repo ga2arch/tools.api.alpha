@@ -259,10 +259,10 @@
 
 (defn load-api
   [path]
-  (let [api (edn/read-string (slurp path))
-        api (resolve-includes api)
-        api (update api :types normalize-types)
-        api (update api :routes (partial normalize-routes api))]
+  (let [api (-> (edn/read-string (slurp path))
+                resolve-includes
+                (update :types normalize-types)
+                (#(update % :routes (partial normalize-routes %))))]
     ;(s/explain ::api api)
     api))
 
@@ -347,7 +347,6 @@
                  first
                  second
                  :type)]
-    (println (:return route))
     (update config :return #(clojure.string/replace % "_" (type->java return)))))
 
 (defn generate-retrofit
