@@ -1,4 +1,4 @@
-# Schema
+# Documentation
 
 The api schema is written in edn with the following format 
 
