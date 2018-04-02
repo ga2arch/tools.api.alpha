@@ -28,8 +28,10 @@
  :routes         {[:context :v2 "/merchant"]
                   {:include "merchant.edn"}
 
-                  [:context :v2 "/merchant/merchant"]
+                  [:context :v1 "/merchant/merchant"]
                   {:path-params {uid [:type/uuid "the uid of the merchant"]}
+                   :consumes     [:application/json]
+                   :produces     [:application/json]
                    :routes      {[:POST "/requests/{request_uid}"]
                                  {:plugins      {:retrofit {:name   "topkek"
                                                             :return "SdkCall<Optional<_>>"}}
@@ -37,8 +39,6 @@
                                   :path-params  {request_uid [:type/uuid "the second uid of the request"]}
                                   :query-params {starting_after [:type/string "the starting after" :required]
                                                  limit          :type/integer}
-                                  :consumes     [:application/json]
-                                  :produces     [:application/json]
                                   :body         ApiRequestBean
                                   :return       {200 [{kek
                                                        {:id          :type/string
@@ -60,8 +60,6 @@
                                   :path-params  {request_uid [:type/uuid "the second uid of the request"]}
                                   :query-params {starting_after [:type/string "the starting after" :required]
                                                  limit          :type/integer}
-                                  :consumes     [:application/json]
-                                  :produces     [:application/json]
                                   :body         :types/ApiRequestBean
                                   :return       {200 [(paginated-list ApiResponseBean)
                                                       "random code"]}}
@@ -71,10 +69,9 @@
                                                            :return "SdkCall<_>"}}
                                   :description "get the merchants"
                                   :path-params {merchant_uid [:type/uuid "the uid of the merchant"]}
-                                  :produces    [:application/json]
                                   :body        :types/ApiRequestBean
                                   :return      {200 {MerchantBean
-                                                     {:id :type/uuid}}}}}
+                                                     {:id :type/uuid}}}}
 
                                  [:GET "/request/{request_uid}"]
                                  {:plugins     {:retrofit {:name   "getRequests"

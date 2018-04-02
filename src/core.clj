@@ -193,28 +193,27 @@
     :path   \"/api\"
     ...}
     normalizing params, body and return"
-  [api [method path] v]
+  [api [method path] route]
   (merge
-    v
+    route
     {:method       method
      :path         path
-     :path-params  (normalize-params (:path-params v))
-     :query-params (normalize-params (:query-params v))
-     :body         (normalize-type api (:body v))
-     :return       (normalize-return api (:return v))}))
+     :path-params  (normalize-params (:path-params route))
+     :query-params (normalize-params (:query-params route))
+     :body         (normalize-type api (:body route))
+     :return       (normalize-return api (:return route))}))
 
 (defn normalize-context
   "Transform context into set of routes by prepending the context base path
    to all the sub routes paths"
-  [api [_ version base-path] v]
-  (if-let [routes (:routes v)]
-    (let [path-params (:path-params v)]
-      (for [[[method path] details] routes]
-        (normalize-endpoint
-          api
-          [method (str "/" (name version) base-path path)]
-          (-> (update details :path-params #(merge path-params %))
-              (assoc :version version)))))))
+  [api [_ version base-path] context]
+  (if-let [routes (:routes context)]
+    (for [[[method path] route] routes]
+      (normalize-endpoint
+        api
+        [method (str "/" (name version) base-path path)]
+        (-> (deep-merge (dissoc context :include :routes) route)
+            (assoc :version version))))))
 
 (defn normalize-routes
   "Transform context into routes and normalize routes"
