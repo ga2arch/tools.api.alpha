@@ -122,20 +122,19 @@
           :args () (if generic)
           :schema {..}}"
   [types]
-  (into
-    {}
-    (for [[k v] types]
-      (cond
-        (or (symbol? k) (keyword? k))
-        [k {:name   k
-            :kind   :concrete
-            :schema v}]
+  (->> (for [[k v] types]
+         (cond
+           (or (symbol? k) (keyword? k))
+           [k {:name   k
+               :kind   :concrete
+               :schema v}]
 
-        (seq? k)
-        [(first k) {:name   (first k)
-                    :kind   :generic
-                    :args   (rest k)
-                    :schema v}]))))
+           (seq? k)
+           [(first k) {:name   (first k)
+                       :kind   :generic
+                       :args   (rest k)
+                       :schema v}]))
+       (into {})))
 
 (defn normalize-type
   "Transform type in the form:
@@ -184,7 +183,8 @@
 
 (defn normalize-return
   [api return]
-  (update-values return (partial normalize-type api)))
+  (for [[code v] return]
+    (assoc (normalize-type api v) :code code)))
 
 (defn normalize-endpoint
   "Transform endpoint in the form {[:GET \"/api/\"] {..}}
@@ -219,14 +219,19 @@
 (defn normalize-routes
   "Transform context into routes and normalize routes"
   [api routes]
-  (let [routes (for [[k v] routes]
-                 (case (first k)
-                   :context (normalize-context api k v)
-                   (normalize-endpoint api k v)))]
-    (->> routes
-         (filter (comp not nil?))
-         flatten
-         (into []))))
+  (let [dups (fn [seq]
+               (for [[id freq] (frequencies seq)
+                     :when (> freq 1)]
+                 id))
+        routes (->> (for [[k v] routes]
+                      (case (first k)
+                        :context (normalize-context api k v)
+                        (normalize-endpoint api k v)))
+                    (filter some?)
+                    flatten)]
+    (if-let [dup (seq (dups (map (juxt :method :path) routes)))]
+      (throw (ex-info "duplicate route" {:route dup}))
+      routes)))
 
 (defn resolve-include
   [m include]
@@ -242,19 +247,16 @@
           (deep-merge m (postwalk #(or (get arg->value %) %) data)))
         data))
 
-    (vector? include)                                       ;; ["file.edn"]
-    (loop [m m
-           include include]
-      (if (empty? include)
-        m
-        (recur (deep-merge m (resolve-include m (first include)))
-               (rest include))))))
+    :else
+    m))
 
 (defn resolve-includes
   [api]
   (prewalk (fn [x]
              (if-let [include (:include x)]
-               (resolve-include x include)
+               (if (vector? include)
+                 (apply merge (map (partial resolve-include x) include))
+                 (resolve-include x include))
                x)) api))
 
 (defn load-api
@@ -317,16 +319,33 @@
 
 ;; retrofit
 
+(defn prepare-path-params-retrofit
+  [path-params]
+  (mapv #(format "@Path(\"%s\") %s %s"
+                 (:name %)
+                 (type->java (:type %))
+                 (->camelCase (:name %))) path-params))
+
+(defn prepare-query-params-retrofit
+  [query-params]
+  (mapv #(format "@Query(\"%s\") %s %s"
+                 (:name %)
+                 (type->java (:type %))
+                 (->camelCase (:name %))) query-params))
+
+(defn prepare-body-retrofit
+  [{:keys [type]}]
+  (format "@Body %s %s"
+          (type->java type)
+          (->camelCase (name (:name type)))))
+
 (defn prepare-params-retrofit
   [{:keys [query-params path-params method body]}]
-  (let [params (let [path (mapv #(format "@Path(\"%s\") %s %s" (:name %) (type->java (:type %)) (->camelCase (:name %))) path-params)
-                     query (mapv #(format "@Query(\"%s\") %s %s" (:name %) (type->java (:type %)) (->camelCase (:name %))) query-params)]
+  (let [params (let [path (prepare-path-params-retrofit path-params)
+                     query (prepare-query-params-retrofit query-params)]
                  (apply str (interpose ", " (concat path query))))]
     (case method
-      (:POST :PUT :PATCH) (str params ", "
-                               (format "@Body %s %s"
-                                       (type->java (:type body))
-                                       (->camelCase (name (get-in body [:type :name])))))
+      (:POST :PUT :PATCH) (str params ", " (prepare-body-retrofit body))
       params)))
 
 (defn prepare-route-retrofit
@@ -340,13 +359,11 @@
                          (some? (:name retrofit)) (assoc :name (:name retrofit))
                          (some? (:return retrofit)) (assoc :return (:return retrofit)))
                  config)
-        return (->>
-                 (into [] (:return route))
-                 (filter #(< (first %) 300))
-                 (sort-by first)
-                 first
-                 second
-                 :type)]
+        return (->> (:return route)
+                    (filter #(< (:code %) 300))             ;; filter by 200 return codes
+                    (sort-by :code)                         ;; sort by return code
+                    first
+                    :type)]
     (update config :return #(clojure.string/replace % "_" (type->java return)))))
 
 (defn generate-retrofit

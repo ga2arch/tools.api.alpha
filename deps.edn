@@ -4,4 +4,5 @@
   org.clojure/core.specs.alpha {:mvn/version "0.1.24"}
   org.clojure/test.check       {:mvn/version "0.9.0"}
   selmer                       {:mvn/version "1.11.7"}
-  camel-snake-kebab            {:mvn/version "0.4.0"}}}
+  camel-snake-kebab            {:mvn/version "0.4.0"}
+  org.clojure/core.match       {:mvn/version "0.3.0-alpha5"}}}

@@ -1,2 +1,11 @@
-{:signature [T]
- :name T}
+{:routes
+ {[:GET "/merchant/{merchant_uid}"]
+  {:plugins     {:retrofit {:name   "getMerchants"
+                            :return "SdkCall<_>"}}
+   :description "get the merchants"
+   :path-params {merchant_uid [:type/uuid "the uid of the merchant"]}
+   :produces    [:application/json]
+   :body        :types/ApiRequestBean
+   :return      {200 {MerchantBean
+                      {:id :type/uuid}}}}}
+ }

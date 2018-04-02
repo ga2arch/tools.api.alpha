@@ -5,8 +5,7 @@
                   :prod "http://test.api.com"}
  :description    "blah blah blah"
 
- :include        ["global.edn"
-                  ("merchant.edn" "kek")]
+ :include        ["global.edn"]
 
  :types          {ApiRequestBean
                   {:id          :type/string
@@ -29,7 +28,7 @@
  :routes         {[:context :v2 "/merchant"]
                   {:include "merchant.edn"}
 
-                  [:context :v1 "/api/{uid}"]
+                  [:context :v2 "/merchant/merchant"]
                   {:path-params {uid [:type/uuid "the uid of the merchant"]}
                    :routes      {[:POST "/requests/{request_uid}"]
                                  {:plugins      {:retrofit {:name   "topkek"
@@ -66,6 +65,16 @@
                                   :body         :types/ApiRequestBean
                                   :return       {200 [(paginated-list ApiResponseBean)
                                                       "random code"]}}
+
+                                 [:GET "/{merchant_uid}"]
+                                 {:plugins     {:retrofit {:name   "getMerchants"
+                                                           :return "SdkCall<_>"}}
+                                  :description "get the merchants"
+                                  :path-params {merchant_uid [:type/uuid "the uid of the merchant"]}
+                                  :produces    [:application/json]
+                                  :body        :types/ApiRequestBean
+                                  :return      {200 {MerchantBean
+                                                     {:id :type/uuid}}}}}
 
                                  [:GET "/request/{request_uid}"]
                                  {:plugins     {:retrofit {:name   "getRequests"
