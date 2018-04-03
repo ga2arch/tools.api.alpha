@@ -52,7 +52,34 @@ example:
 multiple files can be included by passing them into a vector
 
 ## Types
-coming soon ...
+types are of two kind:
+
+* concrete
+    ```clojure
+    ApiRequestBean
+    {id          :type/string
+    session_id  :type/uuid
+    insert_date :type/date}
+    ```
+
+* generic
+    ```clojure
+    (paginated-list T)
+    {has_more :type/boolean
+     data     [T]}
+    ```
+    
+the simple types are:
+
+* `:type/string` 
+* `:type/integer`
+* `:type/int`
+* `:type/void`
+* `:type/uuid`
+* `:type/date`
+* `:type/boolean`
+
+types can be defined inline or under the key `:types` so that they can be reused.
 
 ## Routes
 coming soon ...
