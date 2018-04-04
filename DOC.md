@@ -82,5 +82,31 @@ the simple types are:
 types can be defined inline or under the key `:types` so that they can be reused.
 
 ## Routes
-coming soon ...
+Routes go under the keyword `:routes` and can be of two types:
 
+### Declaration
+*   ```clojure
+    [:context :v1 "/base"]
+    {}
+    ```
+    | key | description |
+    | ----- | ----------- |
+    | `:v1` | the version of the context |
+    | "/base" | the base path of the group |
+    
+    which defines a context under which a set of routes can be grouped, all the keys will be merged 
+    with all the keys defined in each sub route except for `:include` and `:routes`, every path in the subroute 
+    will be prepended with the version + basepath.
+    
+*   ```clojure
+    [:POST "/requests/{request_uid}"]
+    {}
+    ```
+    | key | description |
+    | ----- | ----------- |
+    | `POST` | the http method |
+    | "/requests/{request_uid}" | the base path of the group |
+    | "{request_uid}" | the path param |
+
+### Details
+coming soon ...
