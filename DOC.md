@@ -87,7 +87,7 @@ Routes go under the keyword `:routes` and can be of two types:
 ### Declaration
 *   ```clojure
     [:context :v1 "/base"]
-    {}
+    <details>
     ```
     | key | description |
     | ----- | ----------- |
@@ -100,7 +100,7 @@ Routes go under the keyword `:routes` and can be of two types:
     
 *   ```clojure
     [:POST "/requests/{request_uid}"]
-    {}
+    <details>
     ```
     | key | description |
     | ----- | ----------- |
@@ -109,4 +109,38 @@ Routes go under the keyword `:routes` and can be of two types:
     | "{request_uid}" | the path param |
 
 ### Details
-coming soon ...
+The details of a route have the following schema:
+
+| key               | description                        | type                             |
+| ----------------- | ---------------------------------- | -------------------------------- |
+| `:description`    | the description of the route         | `string` |
+| `:include`        | refer to include section           | |
+| `:path-params`          | refer to path-params section             | |
+| `:query-params`          | refer to query-params section            | |
+| `:body`          | refer to the body section            | |
+| `:return`          | refer to the return section section            | |
+
+#### Path Params 
+A map where the key is a symbol that has to match the one in the path and the value
+can be a keyword (the type) or a vector with `[<type> <description> <opts>]`
+
+example:
+```clojure
+ {request_uid :type/uuid}
+```
+
+```clojure
+{request_uid [:type/uuid "the uid of the request"]}
+```
+
+path params maps is merged with the path params declared in a context of the route (if any)
+
+#### Query Params
+coming soon...
+
+#### Body
+coming soon...
+
+#### Return
+coming soon...
+
