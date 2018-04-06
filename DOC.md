@@ -136,10 +136,11 @@ example:
 path params maps is merged with the path params declared in a context of the route (if any)
 
 #### Query Params
-coming soon...
+same as Path Params
 
 #### Body
-coming soon...
+body can be a type, a type declaration or a vector of type and description
+
 
 #### Return
 coming soon...
