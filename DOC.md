@@ -140,8 +140,28 @@ same as Path Params
 
 #### Body
 body can be a type, a type declaration or a vector of type and description
+example:
+```clojure
+:body         ApiRequestBean
+```
 
 
 #### Return
-coming soon...
+return is a map where each key is an http code and the value can be a type, a type declaration
+or a vector of type and description
+
+example:
+```clojure
+:return       {200 [{kek
+                     {id          :type/string
+                      session_id  :type/uuid
+                      insert_date :type/date}}
+                      "description"]
+
+               201 :type/void
+
+               303 [(paginated-list ApiResponseBean) "random code"]
+
+               404 [error "PA_004 entity not found"]}
+```
 
