@@ -7,5 +7,5 @@
    :produces    [:application/json]
    :body        :types/ApiRequestBean
    :return      {200 {MerchantBean
-                      {:id :type/uuid}}}}}
+                      {id :type/uuid}}}}}
  }

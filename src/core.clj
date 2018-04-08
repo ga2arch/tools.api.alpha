@@ -6,7 +6,8 @@
             [selmer.filters :refer [add-filter!]]
             [clojure.walk :refer [postwalk prewalk]]
             [camel-snake-kebab.core :refer :all]
-            [clojure.spec.gen.alpha :as gen]))
+            [clojure.spec.gen.alpha :as gen]
+            [expound.alpha :as expound]))
 
 ;; global
 (add-filter! :upperHead
@@ -41,13 +42,13 @@
                     :type/boolean})
 
 (s/def :type/name symbol?)
-(s/def :type/kind #{:kind :concrete})
-(s/def :type/schema (s/map-of keyword? (s/or :simple simple-types
-                                             :list vector?
-                                             :generic symbol?)))
+(s/def :type/kind #{:generic :concrete})
+(s/def :type/schema (s/map-of symbol? (s/or :simple simple-types
+                                            :list vector?
+                                            :generic symbol?)))
 
 (s/def ::type (s/keys :req-un [:type/name :type/kind :type/schema]))
-(s/def ::types (s/map-of keyword? ::type))
+(s/def ::types (s/map-of symbol? ::type))
 
 (s/def :route/description string?)
 (s/def :route/path string?)
@@ -57,18 +58,19 @@
 (s/def :route/produces (s/coll-of #{:application/json}))
 (s/def :route/consumers (s/coll-of #{:application/json}))
 
-(s/def :route/query-param.name symbol?)
-(s/def :route/query-param.type (s/map-of keyword? (s/or :simple simple-types
-                                                        :list vector?
-                                                        :generic symbol?)))
-(s/def :route/query-params (s/coll-of (s/keys :req-un [:route/query-param.name
-                                                       :route/query-param.type]
+(s/def :route.query-param/name symbol?)
+(s/def :route.query-param/type (s/or :simple simple-types
+                                     :list vector?
+                                     :generic symbol?))
+
+(s/def :route/query-params (s/coll-of (s/keys :req-un [:route.query-param/name
+                                                       :route.query-param/type]
                                               :opt-un [::description])))
 
 (s/def ::route (s/keys :req-un [:route/path
                                 :route/query-params]))
 
-(s/def ::routes (s/coll-of ::routes))
+(s/def ::routes (s/coll-of ::route))
 (s/def ::api (s/keys :req-un [::schema-version
                               ::service
                               ::base-path
@@ -264,8 +266,9 @@
                 resolve-includes
                 (update :types normalize-types)
                 (#(update % :routes (partial normalize-routes %))))]
-    ;(s/explain ::api api)
-    api))
+    (if (s/valid? ::api api)
+      api
+      (expound/expound ::api api))))
 
 ;; generators
 

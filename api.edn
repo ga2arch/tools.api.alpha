@@ -8,22 +8,22 @@
  :include        ["global.edn"]
 
  :types          {ApiRequestBean
-                  {:id          :type/string
-                   :session_id  :type/uuid
-                   :insert_date :type/date}
+                  {id          :type/string
+                   session_id  :type/uuid
+                   insert_date :type/date}
 
                   ApiResponseBean
-                  {:id          :type/string
+                  {id          :type/string
                    :session_id  :type/uuid
-                   :insert_date :type/date}
+                   insert_date :type/date}
 
                   (paginated-list T)
-                  {:has_more :type/boolean
-                   :data     [T]}
+                  {has_more :type/boolean
+                   data     [T]}
 
                   error
-                  {:code    :type/string
-                   :message :type/string}}
+                  {code    :type/string
+                   message :type/string}}
 
  :routes         {[:context :v2 "/merchant"]
                   {:include "merchant.edn"}

@@ -4,6 +4,6 @@
  :consumes     [:application/json]
  :produces     [:application/json]
  :return       {200 {(paginated-list T)
-                     {:has_more :type/boolean
-                      :data     [T]}}}}
+                     {has_more :type/boolean
+                      data     [T]}}}}
 
