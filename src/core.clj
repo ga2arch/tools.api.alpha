@@ -7,7 +7,8 @@
             [clojure.walk :refer [postwalk prewalk]]
             [camel-snake-kebab.core :refer :all]
             [clojure.spec.gen.alpha :as gen]
-            [expound.alpha :as expound]))
+            [expound.alpha :as expound])
+  (:import (clojure.lang PersistentVector IPersistentMap Keyword)))
 
 ;; global
 (add-filter! :upperHead
@@ -272,26 +273,36 @@
 
 ;; generators
 
-(defn type->java
-  [type]
-  (cond
-    (vector? type)
-    (str "List<" (type->java (first type)) ">")
+(defprotocol JavaType
+  (to-java [type]))
 
-    (map? type)
-    (case (:kind type)
-      :generic (format "%s<%s>" (->PascalCase (name (:name type))) (apply str (mapv type->java (:args type))))
-      :concrete (->PascalCase (name (:name type))))
+(defmulti type-keyword->java identity)
+(defmethod type-keyword->java :type/string [_] "String")
+(defmethod type-keyword->java :type/integer [_] "Integer")
+(defmethod type-keyword->java :type/void [_] "void")
+(defmethod type-keyword->java :type/uuid [_] "UUID")
+(defmethod type-keyword->java :type/date [_] "Date")
+(defmethod type-keyword->java :type/boolean [_] "Boolean")
 
-    (keyword? type)
-    (case type
-      :type/string "String"
-      :type/integer "Integer"
-      :type/int "int"
-      :type/void "void"
-      :type/uuid "UUID"
-      :type/date "Date"
-      :type/boolean "Boolean")))
+(defmulti type-kind->java :kind)
+(defmethod type-kind->java :generic [type]
+  (format "%s<%s>" (->PascalCase (name (:name type))) (apply str (mapv to-java (:args type)))))
+
+(defmethod type-kind->java :concrete [type]
+  (->PascalCase (name (:name type))))
+
+(extend-protocol JavaType
+  PersistentVector
+  (to-java [type]
+    (str "List<" (to-java (first type)) ">"))
+
+  IPersistentMap
+  (to-java [type]
+    (type-kind->java type))
+
+  Keyword
+  (to-java [type]
+    (type-keyword->java type)))
 
 ;; java beans
 
@@ -299,12 +310,12 @@
   [schema]
   (for [[field type] schema]
     {:name (->camelCase (name field))
-     :type (type->java type)}))
+     :type (to-java type)}))
 
 (defn type->bean
   [type]
   (t/render (slurp "resources/templates/bean")
-            {:name   (type->java type)
+            {:name   (to-java type)
              :ctor   (->PascalCase (name (:name type)))
              :fields (schema->fields (:schema type))}))
 
@@ -325,20 +336,20 @@
   [path-params]
   (mapv #(format "@Path(\"%s\") %s %s"
                  (:name %)
-                 (type->java (:type %))
+                 (to-java (:type %))
                  (->camelCase (:name %))) path-params))
 
 (defn prepare-query-params-retrofit
   [query-params]
   (mapv #(format "@Query(\"%s\") %s %s"
                  (:name %)
-                 (type->java (:type %))
+                 (to-java (:type %))
                  (->camelCase (:name %))) query-params))
 
 (defn prepare-body-retrofit
   [{:keys [type]}]
   (format "@Body %s %s"
-          (type->java type)
+          (to-java type)
           (->camelCase (name (:name type)))))
 
 (defn prepare-params-retrofit
@@ -366,7 +377,7 @@
                     (sort-by :code)                         ;; sort by return code
                     first
                     :type)]
-    (update config :return #(clojure.string/replace % "_" (type->java return)))))
+    (update config :return #(clojure.string/replace % "_" (to-java return)))))
 
 (defn generate-retrofit
   [{:keys [service routes] :as api}]

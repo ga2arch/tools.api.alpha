@@ -14,7 +14,7 @@
 
                   ApiResponseBean
                   {id          :type/string
-                   :session_id  :type/uuid
+                   session_id  :type/uuid
                    insert_date :type/date}
 
                   (paginated-list T)
