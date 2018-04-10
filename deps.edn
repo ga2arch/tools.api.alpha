@@ -6,4 +6,5 @@
   selmer                       {:mvn/version "1.11.7"}
   camel-snake-kebab            {:mvn/version "0.4.0"}
   org.clojure/core.match       {:mvn/version "0.3.0-alpha5"}
-  expound                      {:mvn/version "0.5.0"}}}
+  expound                      {:mvn/version "0.5.0"}
+  io.forward/yaml              {:mvn/version "1.0.7"}}}

@@ -7,7 +7,8 @@
             [clojure.walk :refer [postwalk prewalk]]
             [camel-snake-kebab.core :refer :all]
             [clojure.spec.gen.alpha :as gen]
-            [expound.alpha :as expound])
+            [expound.alpha :as expound]
+            [yaml.core :as yaml])
   (:import (clojure.lang PersistentVector IPersistentMap Keyword)))
 
 ;; global
@@ -216,7 +217,8 @@
         api
         [method (str "/" (name version) base-path path)]
         (-> (deep-merge (dissoc context :include :routes) route)
-            (assoc :version version))))))
+            (assoc :version version
+                   :context base-path))))))
 
 (defn normalize-routes
   "Transform context into routes and normalize routes"
@@ -273,49 +275,42 @@
 
 ;; generators
 
-(defprotocol JavaType
-  (to-java [type]))
-
-(defmulti type-keyword->java identity)
-(defmethod type-keyword->java :type/string [_] "String")
-(defmethod type-keyword->java :type/integer [_] "Integer")
-(defmethod type-keyword->java :type/void [_] "void")
-(defmethod type-keyword->java :type/uuid [_] "UUID")
-(defmethod type-keyword->java :type/date [_] "Date")
-(defmethod type-keyword->java :type/boolean [_] "Boolean")
-
-(defmulti type-kind->java :kind)
-(defmethod type-kind->java :generic [type]
-  (format "%s<%s>" (->PascalCase (name (:name type))) (apply str (mapv to-java (:args type)))))
-
-(defmethod type-kind->java :concrete [type]
+(def convert-type nil)
+(defmulti convert-type (fn [generator type] (println type) [generator (class type) (cond
+                                                                      (vector? type)
+                                                                      nil
+                                                                      (keyword? type)
+                                                                      type
+                                                                      (map? type)
+                                                                      (:kind type))]))
+(defmethod convert-type [:java PersistentVector nil] [_ type]
+  (str "List<" (convert-type :java (first type)) ">"))
+(defmethod convert-type [:java IPersistentMap :generic] [_ type]
+  (format "%s<%s>" (->PascalCase (name (:name type))) (apply str (mapv (partial convert-type :java) (:args type)))))
+(defmethod convert-type [:java IPersistentMap :concrete] [_ type]
   (->PascalCase (name (:name type))))
-
-(extend-protocol JavaType
-  PersistentVector
-  (to-java [type]
-    (str "List<" (to-java (first type)) ">"))
-
-  IPersistentMap
-  (to-java [type]
-    (type-kind->java type))
-
-  Keyword
-  (to-java [type]
-    (type-keyword->java type)))
+(defmethod convert-type [:java Keyword :type/string] [_ _] "String")
+(defmethod convert-type [:java Keyword :type/integer] [_ _] "Integer")
+(defmethod convert-type [:java Keyword :type/void] [_ _] "void")
+(defmethod convert-type [:java Keyword :type/uuid] [_ _] "UUID")
+(defmethod convert-type [:java Keyword :type/date] [_ _] "Date")
+(defmethod convert-type [:java Keyword :type/boolean] [_ _] "Boolean")
 
 ;; java beans
+
+(defn type->java [type]
+  (convert-type :java type))
 
 (defn schema->fields
   [schema]
   (for [[field type] schema]
     {:name (->camelCase (name field))
-     :type (to-java type)}))
+     :type (convert-type :java type)}))
 
 (defn type->bean
   [type]
   (t/render (slurp "resources/templates/bean")
-            {:name   (to-java type)
+            {:name   (type->java type)
              :ctor   (->PascalCase (name (:name type)))
              :fields (schema->fields (:schema type))}))
 
@@ -336,20 +331,20 @@
   [path-params]
   (mapv #(format "@Path(\"%s\") %s %s"
                  (:name %)
-                 (to-java (:type %))
+                 (type->java (:type %))
                  (->camelCase (:name %))) path-params))
 
 (defn prepare-query-params-retrofit
   [query-params]
   (mapv #(format "@Query(\"%s\") %s %s"
                  (:name %)
-                 (to-java (:type %))
+                 (type->java (:type %))
                  (->camelCase (:name %))) query-params))
 
 (defn prepare-body-retrofit
   [{:keys [type]}]
   (format "@Body %s %s"
-          (to-java type)
+          (type->java type)
           (->camelCase (name (:name type)))))
 
 (defn prepare-params-retrofit
@@ -377,7 +372,7 @@
                     (sort-by :code)                         ;; sort by return code
                     first
                     :type)]
-    (update config :return #(clojure.string/replace % "_" (to-java return)))))
+    (update config :return #(clojure.string/replace % "_" (type->java return)))))
 
 (defn generate-retrofit
   [{:keys [service routes] :as api}]
@@ -385,3 +380,39 @@
                 :routes  (mapv prepare-route-retrofit routes)}]
     (t/render (slurp "resources/templates/retrofit") config)))
 
+;; raml
+
+(defmethod convert-type [:raml PersistentVector nil] [_ type]
+  (str (convert-type :raml (first type)) "[]"))
+(defmethod convert-type [:raml IPersistentMap :generic] [_ type]
+  (->PascalCase (name (:name type))))
+
+(defmethod convert-type [:raml IPersistentMap :concrete] [_ type]
+  (->PascalCase (name (:name type))))
+
+(defmethod convert-type [:raml Keyword :type/string] [_ _] "string")
+(defmethod convert-type [:raml Keyword :type/integer] [_ _] "int")
+(defmethod convert-type [:raml Keyword :type/void] [_ _] "void")
+(defmethod convert-type [:raml Keyword :type/uuid] [_ _] "string")
+(defmethod convert-type [:raml Keyword :type/date] [_ _] "date")
+(defmethod convert-type [:raml Keyword :type/boolean] [_ _] "bool")
+
+(defn type->raml
+  [{:keys [kind schema] :as type}]
+  {(name (:name type)) {:properties (into {} (mapv (fn [[k v]] [(name k) (convert-type :raml v)]) schema))}})
+
+(defn route->raml
+  [{:keys [path method query-params path-params]}]
+  {path
+   {(.toLowerCase (name method))
+    {:pathParameters
+     {}}}})
+
+(defn to-raml
+  [{:keys [service base-path types routes]}]
+  (let [data {:title   service
+              :baseUri (:test base-path)
+              :types   (apply merge (mapv (fn [[_ v]] (type->raml v)) types))
+              :routes  (mapv route->raml routes)}]
+    (yaml/generate-string data :dumper-options {:flow-style   :block
+                                                :scalar-style :plain})))
