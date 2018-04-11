@@ -277,12 +277,12 @@
 
 (def convert-type nil)
 (defmulti convert-type (fn [generator type] (println type) [generator (class type) (cond
-                                                                      (vector? type)
-                                                                      nil
-                                                                      (keyword? type)
-                                                                      type
-                                                                      (map? type)
-                                                                      (:kind type))]))
+                                                                                     (vector? type)
+                                                                                     nil
+                                                                                     (keyword? type)
+                                                                                     type
+                                                                                     (map? type)
+                                                                                     (:kind type))]))
 (defmethod convert-type [:java PersistentVector nil] [_ type]
   (str "List<" (convert-type :java (first type)) ">"))
 (defmethod convert-type [:java IPersistentMap :generic] [_ type]
@@ -399,14 +399,25 @@
 
 (defn type->raml
   [{:keys [kind schema] :as type}]
-  {(name (:name type)) {:properties (into {} (mapv (fn [[k v]] [(name k) (convert-type :raml v)]) schema))}})
+  (cond
+    (keyword? type)
+    (convert-type :raml type)
+    :else
+    {(name (:name type)) {:properties (into {} (mapv (fn [[k v]] [(name k) (convert-type :raml v)]) schema))}}))
+
+(defn path-params->raml
+  [path-params]
+  (let [xf (map (fn [param]
+                  [(name (:name param)) {:type (type->raml (:type param))
+                                         :displayName (:description param)}]))]
+    (into {} xf path-params)))
 
 (defn route->raml
   [{:keys [path method query-params path-params]}]
   {path
    {(.toLowerCase (name method))
-    {:pathParameters
-     {}}}})
+    {:uriParameters
+     (path-params->raml path-params)}}})
 
 (defn to-raml
   [{:keys [service base-path types routes]}]
