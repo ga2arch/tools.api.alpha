@@ -412,12 +412,22 @@
                                          :displayName (:description param)}]))]
     (into {} xf path-params)))
 
+(defn query-params->raml
+  [query-params]
+  (let [xf (map (fn [param]
+                  [(name (:name param)) (cond->
+                                          {:type        (type->raml (:type param))}
+                                          (:description param) (assoc :displayName (:description param)))]))]
+    (into {} xf query-params)))
+
 (defn route->raml
   [{:keys [path method query-params path-params]}]
   {path
    {(.toLowerCase (name method))
     {:uriParameters
-     (path-params->raml path-params)}}})
+     (path-params->raml path-params)
+     :queryParameters
+     (query-params->raml query-params)}}})
 
 (defn to-raml
   [{:keys [service base-path types routes]}]
